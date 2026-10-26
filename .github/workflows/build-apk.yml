@@ -1,0 +1,85 @@
+name: Build Yubaraj Financial App APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Install Capacitor Assets
+        run: npm install --no-save @capacitor/assets
+
+      - name: Check App Files
+        run: |
+          test -f package.json
+          test -f capacitor.config.json
+          test -f resources/icon.png
+          test -f www/index.html
+
+      - name: Prepare Android
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+
+      - name: Generate App Icon
+        run: npx capacitor-assets generate --android
+
+      - name: Sync Android
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Prepare APK
+        run: |
+          mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+            release/Yubaraj-Financial-App.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yubaraj-Financial-App
+          path: release/Yubaraj-Financial-App.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-apk
+          name: Yubaraj Financial App - Latest APK
+          body: Latest APK build of Yubaraj Financial App.
+          files: release/Yubaraj-Financial-App.apk
+          fail_on_unmatched_files: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
